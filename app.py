@@ -2,6 +2,7 @@
 Main Streamlit Application
 """
 import streamlit as st
+from utils.streamlit_auth import require_login, render_logout_in_sidebar
 from power_analysis.streamlit_page import show_power_analysis_page
 from group_selection.streamlit_page import show_group_selection_page
 from rebalancer.streamlit_page import show_rebalancer_page
@@ -12,7 +13,10 @@ st.set_page_config(
     page_title="Statistical Analysis Tool",
     layout="wide",
     initial_sidebar_state="collapsed"
-)# Initialize session state for navigation
+)
+require_login()
+render_logout_in_sidebar()
+# Initialize session state for navigation
 if 'current_page' not in st.session_state:
     st.session_state.current_page = 'main'
 
