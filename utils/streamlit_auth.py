@@ -19,6 +19,7 @@ except ImportError:
 def _load_env() -> None:
     if load_dotenv is not None:
         load_dotenv()
+        
 
 
 def _auth_configured() -> bool:
