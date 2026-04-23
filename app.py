@@ -14,8 +14,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-require_login()
-render_logout_in_sidebar()
+# require_login()
+# render_logout_in_sidebar()
 # Initialize session state for navigation
 if 'current_page' not in st.session_state:
     st.session_state.current_page = 'main'
