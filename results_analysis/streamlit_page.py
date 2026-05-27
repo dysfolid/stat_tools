@@ -8,7 +8,9 @@ from results_analysis.ui_components import (
     render_configuration,
     render_basic_analysis,
     render_cuped_analysis,
-    render_did_analysis
+    render_did_analysis,
+    render_heterogeneity_setup,
+    render_heterogeneity_results,
 )
 from results_analysis.guide import render_guide
 from utils.streamlit_artifacts import render_download_artifact_button as _render_download_artifact_button
@@ -45,20 +47,28 @@ def show_results_analysis_page():
     
     with tab_analysis:
         # Sub-tabs for different analysis types
-        sub_tab_basic, sub_tab_cuped, sub_tab_did = st.tabs([
+        sub_tab_basic, sub_tab_cuped, sub_tab_did, sub_tab_het = st.tabs([
             "📊 Basic Analysis",
             "🔬 CUPED Analysis",
-            "📉 Difference-in-Differences"
+            "📉 Difference-in-Differences",
+            "🧬 Heterogeneity Analysis",
         ])
-        
+
         with sub_tab_basic:
             render_basic_analysis()
-        
+
         with sub_tab_cuped:
             render_cuped_analysis()
-        
+
         with sub_tab_did:
             render_did_analysis()
+
+        with sub_tab_het:
+            het_setup, het_results = st.tabs(["⚙️ Setup", "📈 Results"])
+            with het_setup:
+                render_heterogeneity_setup()
+            with het_results:
+                render_heterogeneity_results()
     
     with tab_instructions:
         render_guide()

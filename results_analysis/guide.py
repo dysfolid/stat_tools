@@ -16,55 +16,68 @@ def render_guide():
     
     st.subheader("What is Results Analysis?")
     st.markdown("""
-    Results Analysis helps you **analyze treatment effects** from your A/B test by comparing metrics between groups, 
-    calculating uplifts, and assessing statistical significance. The tool provides three analysis methods:
-    
+    Results Analysis helps you **analyze treatment effects** from your A/B test by comparing metrics between groups,
+    calculating uplifts, and assessing statistical significance. The tool provides four analysis methods:
+
     - **Basic Analysis:** Direct comparison of metrics between groups
     - **CUPED Analysis:** Variance reduction using pre-experiment data to improve precision
     - **Difference-in-Differences (DiD):** Compares changes between groups across pre/post periods
+    - **Heterogeneity Analysis:** Per-user treatment effects (CATE) via meta-learners — answers "for *whom* does the treatment work?"
     
     **When to Use:** After running your A/B test, upload the results data to analyze treatment effects, 
     calculate uplifts, and determine statistical significance.
     """)
     
     st.subheader("Analysis Methods")
-    
-    col1, col2, col3 = st.columns(3)
-    
+
+    col1, col2, col3, col4 = st.columns(4)
+
     with col1:
         st.markdown("""
         **📊 Basic Analysis**
-        
+
         Direct comparison of metrics between groups.
-        
-        - Compares means, calculates uplifts, SMD, and p-values
+
+        - Compares means, calculates uplifts (%), SMD, and p-values
         - Simple and straightforward
         - Works with any numeric metrics
         - Best for: Binary outcomes, simple metrics, quick analysis
         """)
-    
+
     with col2:
         st.markdown("""
         **🔬 CUPED Analysis**
-        
+
         Uses pre-experiment data to reduce variance and improve precision.
-        
+
         - Adjusts post-experiment metrics using pre-experiment baseline
         - Reduces variance, improving statistical power
         - Requires pre/post metric pairs (e.g., revenue_pre, revenue_post)
         - Best for: Continuous metrics with baseline data, when you need more precision
         """)
-    
+
     with col3:
         st.markdown("""
         **📉 Difference-in-Differences**
-        
+
         Compares changes between groups across pre/post periods.
-        
-        - Calculates DiD gap: (Post_Treatment - Pre_Treatment) - (Post_Control - Pre_Control)
+
+        - Calculates DiD gap: (Post_T − Pre_T) − (Post_C − Pre_C)
         - Accounts for pre-existing differences and trends
         - Requires pre/post metric pairs
         - Best for: When groups may have different baselines, trend analysis
+        """)
+
+    with col4:
+        st.markdown("""
+        **🧬 Heterogeneity Analysis**
+
+        Per-user treatment effects (CATE) via meta-learners.
+
+        - Estimates how the treatment effect varies across users
+        - Supports mixed-type features (numeric + categorical with per-column encoding)
+        - Validates targeting quality via Qini curve on a holdout
+        - Best for: Answering "for *whom* does this work?" and targeting policies
         """)
     
     st.divider()
@@ -98,33 +111,53 @@ def render_guide():
        - Check that groups are correctly identified
        - Verify group sizes look reasonable
        - Ensure you have at least 2 groups for analysis
+
+    3. **Pre/Post Period Configuration (shared by CUPED & DiD):**
+       - **Post-period suffix** (e.g. `_post`) — identifies post-experiment columns.
+       - **Pre-period suffix #1** (e.g. `_pre`) — identifies the pre-experiment column.
+       - **Checkbox: "My data has multiple pre-periods"** — when enabled, you can add more pre-suffixes (e.g. `_pre_w1`, `_pre_w2`, `_pre_w3`) with the ➕ button, and remove any with ✕.
+       - Multi-pre mode automatically switches CUPED to a multivariate OLS adjustment (a.k.a. **CUPED+**) and DiD to an averaged-baseline + parallel-trends visualisation.
+
+    4. **T-Test Type (optional):**
+       - Default is **two-sided** (H₁: μ₁ ≠ μ₂) — recommended for most experiments
+       - **Larger** (H₁: μ₁ > μ₂) and **Smaller** (H₁: μ₁ < μ₂) are one-sided tests
+       - Applies to p-values shown in Basic, CUPED, and DiD analyses
+       - Use one-sided only if your experiment was pre-registered as directional — switching to one-sided after seeing results inflates the false-positive rate
     """)
     
     st.subheader("Step 3: Choose Analysis Method")
     st.markdown("""
     **Location:** 📊 Analysis tab
-    
-    The Analysis tab contains three sub-tabs for different analysis methods:
-    
+
+    The Analysis tab contains four sub-tabs for different analysis methods:
+
     **📊 Basic Analysis:**
     - Select metric columns to analyze
     - Works with any numeric metrics
     - Shows means, uplifts, SMD, and p-values
     - View results as Summary (table) or Visual Report
-    
+
     **🔬 CUPED Analysis:**
-    - Configure suffixes for pre/post columns (default: "_pre" and "_post")
+    - Suffixes are now set in the **⚙️ Configuration** tab (one place for both CUPED and DiD)
     - Select metrics that have both pre and post versions
-    - Automatically detects metrics with matching pre/post pairs
-    - Shows CUPED-adjusted means, SMD, and p-values
+    - Automatically detects metrics with matching pre/post pairs (multi-pre requires *all* pre suffixes to exist for the metric)
+    - Single-pre: classic CUPED — `Y_adj = Y − θ·(X − E[X])`
+    - Multi-pre: multivariate OLS CUPED+ — `Y_adj = Y − Σ θᵢ·(Xᵢ − E[Xᵢ])`, with **R²** showing how much post-period variance the pre-periods explain
+    - Shows CUPED-adjusted means, uplifts (%), SMD, and p-values
     - View results as Summary (table) or Visual Report
-    
+
     **📉 Difference-in-Differences:**
-    - Configure suffixes for pre/post columns (default: "_pre" and "_post")
+    - Suffixes are now set in the **⚙️ Configuration** tab
     - Select metrics that have both pre and post versions
-    - Automatically detects metrics with matching pre/post pairs
-    - Shows pre-period means, post-period means, % change, and DiD gap
+    - Single-pre: classic DiD — `(post_T − pre_T) − (post_C − pre_C)`
+    - Multi-pre: baseline becomes the **row-wise mean of all pre-period columns**, and the first plot column becomes a **parallel-trends line** — one line per group across all periods — to help check the DiD parallel-trends assumption
+    - Shows (pre or parallel-trends), post means, % change, and DiD gap
     - View results as Summary (table) or Visual Report
+
+    **🧬 Heterogeneity Analysis** (split into **⚙️ Setup** and **📈 Results** sub-tabs):
+    - *Setup:* configure outcome (raw post column, or CUPED-adjusted), control + treatment levels, mixed-type features with per-column categorical encoding (one-hot / ordinal / target), meta-learner (T / S / X / DR / CausalForest), base ML model (RandomForest / GradientBoosting / Linear/Logistic), hyperparameters, holdout split, bootstrap iterations, random seed
+    - *Results:* per-user CATE histogram with ATE + 95% CI, feature importance bar, Qini curve on the holdout with AUUC, subgroup drill-down by any feature (categorical → bar per level; numeric → bar per quantile), per-user CATE CSV download
+    - Heavy lift: fitting can take seconds to a minute depending on learner × n_estimators × data size
     """)
     
     st.subheader("Step 4: Review Results")
@@ -134,16 +167,21 @@ def render_guide():
     **Summary View:**
     - Text-based table showing:
       - **Basic Analysis:** Means per group, uplifts (%), SMD, p-values, significance
-      - **CUPED Analysis:** CUPED-adjusted means, uplifts, CUPED SMD, CUPED p-values
+      - **CUPED Analysis:** CUPED-adjusted means, uplifts, CUPED SMD, CUPED p-values (+ R² column in multi-pre mode)
       - **DiD Analysis:** Pre/post means, % change, DiD gap, significance
+      - **Heterogeneity Analysis:** Summary cards (Learner / ATE+CI / AUUC / Train·Holdout sizes), CATE histogram, feature importance, Qini curve, subgroup table
     - Download summary as CSV for further analysis
-    
+
     **Visual Report:**
     - Interactive plots showing:
-      - **Basic Analysis:** 4-column layout per metric (means, uplifts, SMD, p-values)
-      - **CUPED Analysis:** 3-column layout per metric (CUPED means, SMD, p-values)
-      - **DiD Analysis:** 4-column layout per metric (pre-period means, post-period means, % change, DiD gap heatmap)
-    - Download plots as HTML for presentations
+      - **Basic Analysis:** 4-column layout per metric (means, uplifts %, SMD, p-values)
+      - **CUPED Analysis (single-pre):** 4-column layout per metric (CUPED means, uplifts %, CUPED SMD, CUPED p-values)
+      - **CUPED Analysis (multi-pre):** 5-column layout — adds a horizontal **Coefficients** bar (one bar per pre-period suffix, sorted by |θ|, blue = positive, red = negative) with **R²** in the subplot title
+      - **DiD Analysis (single-pre):** 4-column layout per metric (pre-period means, post-period means, % change, DiD gap heatmap)
+      - **DiD Analysis (multi-pre):** column 1 becomes a **parallel-trends line** (one line per group across all periods); the rest stay the same
+      - **Heterogeneity Analysis:** CATE distribution histogram (with ATE line + 95% CI band), top-K feature importance bar, Qini curve vs random baseline, subgroup bar (per categorical level or per quantile bin)
+    - Bar charts display value labels above each bar; heatmaps show the numeric value in each cell
+    - Download plots as HTML for presentations; per-user CATE downloadable as CSV from the Heterogeneity tab
     
     **Download Results:**
     - Download summary tables as CSV
@@ -177,6 +215,7 @@ def render_guide():
     **Interpreting Results:**
     - **Uplift:** Positive = treatment is better, negative = control is better
     - **P-value < 0.05:** Statistically significant difference (reject null hypothesis)
+    - **T-Test Type:** Two-sided p-values test for any difference; one-sided (larger/smaller) test only the chosen direction and roughly halve the p-value when the data points that way — only use one-sided if pre-registered
     - **SMD < 0.1:** Small standardized difference (good balance)
     - **SMD 0.1-0.25:** Moderate difference
     - **SMD > 0.25:** Large difference
@@ -187,7 +226,33 @@ def render_guide():
     - Can detect smaller effects with same sample size
     - Particularly effective when pre/post correlation is high
     - Improves statistical power
-    
+
+    **Multi-pre CUPED (CUPED+):**
+    - Uses OLS to fit `Y = Σ θᵢ·Xᵢ + ε` on the pooled data, then adjusts: `Y_adj = Y − Σ θᵢ·(Xᵢ − mean(Xᵢ))`
+    - **R²** = fraction of post-period variance explained by the combined pre-periods. Higher is better; 2–4 pre-windows typically captures most of the achievable variance reduction
+    - **Coefficients (θᵢ)** = relative weight of each pre-period. A near-zero coefficient means that period adds little; consider removing it
+    - Adjacent pre-periods are highly correlated, so the 3rd or 4th window often shows a small or negative coefficient — that is fine
+    - Only valid when all pre-period columns are measured **before** treatment assignment
+
+    **Heterogeneity Analysis (CATE):**
+    - Estimates a **per-user treatment effect** (Conditional Average Treatment Effect) rather than a single ATE
+    - Inputs: outcome (raw post column, or CUPED-adjusted post), treatment vs control levels, mixed-type features (numeric + categorical with per-column encoding choice)
+    - Choose a **meta-learner**:
+      - **T-learner**: separate outcome models for treated and control. Simple and robust; the right default unless you have a specific reason.
+      - **S-learner**: single outcome model with treatment as a feature. Often *shrinks* effects toward zero — use cautiously.
+      - **X-learner**: extends T-learner with a two-stage imputation step. Better when the arms have very different sizes.
+      - **DR-learner**: doubly-robust — valid inference under either correct outcome OR correct propensity model. Slower.
+      - **CausalForest**: nonparametric, automatically captures feature interactions; the most expressive option but the slowest.
+    - Choose a **base ML model**: RandomForest (default), GradientBoosting, or Linear/Logistic.
+    - Holdout split + Qini curve quantify whether the model's ranking of users by predicted CATE actually captures incremental value.
+    - **AUUC** > 0 means the model's targeting beats random targeting; AUUC < 0 means it underperforms random (overfit or noisy data).
+    - Subgroup drill-down lets you slice the predicted CATE by any categorical feature or numeric quintile — turns "the treatment lifts revenue +3%" into "the lift is +6% for East-region desktop users and −1% for South-region mobile users."
+
+    **Multi-pre DiD (parallel-trends visualisation):**
+    - Replaces the single pre-period bar with a **line plot** showing each group's mean at every pre-period and the post-period
+    - The DiD parallel-trends assumption is satisfied when the lines for different groups stay roughly **parallel before** the post-period; divergent pre-trends invalidate the simple DiD estimate
+    - Baseline for the DiD gap and p-value becomes the **row-wise mean** of all pre-period columns — less noisy than a single pre snapshot
+
     **DiD Benefits:**
     - Accounts for pre-existing differences between groups
     - Controls for time trends that affect both groups
@@ -228,7 +293,7 @@ def render_guide():
     2. **Configure suffixes** (default: "_pre" and "_post")
     3. **Select metrics** with pre/post pairs (e.g., revenue, engagement_score)
     4. Choose **View Mode:** Summary or Visual Report
-    5. Review CUPED-adjusted means, SMD, and p-values
+    5. Review CUPED-adjusted means, uplifts (%), SMD, and p-values
     6. Compare with Basic Analysis to see variance reduction
     7. Download summary or plots as needed
     
@@ -240,9 +305,26 @@ def render_guide():
     5. Review pre/post means, % change, and DiD gap
     6. Check DiD gap heatmap for treatment effects
     7. Download summary or plots as needed
-    
+
+    **For Heterogeneity Analysis:**
+    1. Select **🧬 Heterogeneity Analysis** sub-tab → **⚙️ Setup**
+    2. Pick **Outcome** (raw column, or tick *Use CUPED-adjusted outcome* and pick the base metric)
+    3. Pick **Control** and **Treatment** levels (rows from other groups are excluded)
+    4. Pick **Numeric** and **Categorical** features; expand "Categorical encoding" to set per-column encoding if needed
+    5. Pick **Meta-learner** (T-learner is a safe default) and **Base ML model** (RandomForest is a safe default)
+    6. Optionally open **Advanced hyperparameters** to tune n_estimators, max_depth, etc.
+    7. Set **Holdout split** (default 20%), **Bootstrap iterations** (default 200), **Random seed**
+    8. Click **🚀 Fit heterogeneity model**
+    9. Switch to **📈 Results** sub-tab:
+       - Read the ATE + 95% CI and AUUC in the summary cards
+       - Inspect the CATE histogram (how spread are per-user effects?)
+       - Check feature importance (which features drive the variation in lift?)
+       - Read the Qini curve (does targeting top-X% by predicted CATE beat random?)
+       - Drill down by any feature in **Subgroup drill-down** for a sliced view
+       - Download per-user CATE CSV for downstream targeting
+
     **Final Step:**
     - **Save artifact** for documentation and reproducibility
     """)
-    
-    st.info("💡 **Remember:** Different analysis methods can provide complementary insights. Use Basic Analysis for quick results, CUPED for precision, and DiD for causal interpretation.")
+
+    st.info("💡 **Remember:** Different analysis methods provide complementary insights. Basic for quick results, CUPED for precision, DiD for causal interpretation under different baselines, Heterogeneity for *which users* the treatment helps.")

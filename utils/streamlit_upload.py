@@ -11,7 +11,7 @@ These helpers centralize the repeated pattern used across pages:
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 import os
 
@@ -75,9 +75,30 @@ def render_csv_upload_with_dummy(
     artifact_log_category: str = "data_upload",
     show_overview: bool = True,
     clear_data_on_upload_error: bool = False,
+    dummy_button_label: str = "🎲 Load Dummy Data",
+    # Legacy secondary-dummy params (kept for backward compatibility)
+    dummy_alt_file_path: Optional[str] = None,
+    dummy_alt_button_key: Optional[str] = None,
+    dummy_alt_loaded_filename: Optional[str] = None,
+    dummy_alt_button_label: Optional[str] = None,
+    dummy_alt_description: Optional[str] = None,
+    # New: arbitrary list of dummies, takes precedence over the legacy params
+    dummy_datasets: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[pd.DataFrame]:
     """
-    Render a standardized upload section with optional dummy data loader.
+    Render a standardized upload section with optional dummy data loader(s).
+
+    Pass either:
+      * dummy_file_path / dummy_button_key / ... (the legacy single-dummy API,
+        with optional dummy_alt_* fields for a second button), OR
+      * dummy_datasets: a list of dicts, each with keys:
+            file_path     (str, required)
+            button_key    (str, required)
+            button_label  (str, optional — defaults to '🎲 Load Dummy')
+            loaded_filename (str, optional)
+            heading       (str, optional — bold title shown above the button)
+            caption       (str, optional — small grey caption)
+        Buttons render side-by-side in equal columns inside the expander.
 
     Returns the current dataframe if available, else None.
     """
@@ -88,35 +109,78 @@ def render_csv_upload_with_dummy(
     st.header(header)
     st.markdown(description)
 
-    # Dummy data loader
-    if dummy_file_path and dummy_button_key:
+    def _load_dummy(path: str, loaded_name: Optional[str]) -> None:
+        if os.path.exists(path):
+            df_dummy = pd.read_csv(path)
+            st.session_state[data_state_key] = df_dummy
+            if filename_state_key and loaded_name:
+                st.session_state[filename_state_key] = loaded_name
+
+            if artifact is not None:
+                artifact.add_df(artifact_df_name, df_dummy, f"{artifact_df_description} (dummy)")
+                artifact.add_log(
+                    category=artifact_log_category,
+                    message="Dummy data loaded",
+                    details={
+                        "filename": loaded_name or os.path.basename(path),
+                        "rows": len(df_dummy),
+                        "columns": len(df_dummy.columns),
+                        "column_names": list(df_dummy.columns),
+                    },
+                )
+
+            st.success(f"✅ Dummy data loaded! ({len(df_dummy)} rows, {len(df_dummy.columns)} columns)")
+            st.rerun()
+        else:
+            st.error(f"❌ Dummy data file not found: {path}")
+            st.info("💡 Run 'python dummy_data_builders/generate_all_dummy_data.py' to generate the files")
+
+    # Build the list of datasets to render: prefer explicit `dummy_datasets`,
+    # otherwise synthesize from the legacy params.
+    datasets: List[Dict[str, Any]] = []
+    if dummy_datasets:
+        datasets = [d for d in dummy_datasets if d.get("file_path") and d.get("button_key")]
+    elif dummy_file_path and dummy_button_key:
+        datasets.append({
+            "file_path": dummy_file_path,
+            "button_key": dummy_button_key,
+            "button_label": dummy_button_label,
+            "loaded_filename": dummy_loaded_filename,
+            "heading": "Standard dataset" if (dummy_alt_file_path and dummy_alt_button_key) else None,
+            "caption": "Pre-generated sample data for general testing" if (dummy_alt_file_path and dummy_alt_button_key) else None,
+        })
+        if dummy_alt_file_path and dummy_alt_button_key:
+            datasets.append({
+                "file_path": dummy_alt_file_path,
+                "button_key": dummy_alt_button_key,
+                "button_label": dummy_alt_button_label or "🎲 Load Alt Dummy",
+                "loaded_filename": dummy_alt_loaded_filename,
+                "heading": "Alternative dataset",
+                "caption": dummy_alt_description or "Alternative sample data",
+            })
+
+    if datasets:
         with st.expander("🎲 Load Dummy Data", expanded=False):
-            st.markdown("Load pre-generated sample data for testing")
-            if st.button("🎲 Load Dummy Data", key=dummy_button_key, type="primary"):
-                if os.path.exists(dummy_file_path):
-                    df_dummy = pd.read_csv(dummy_file_path)
-                    st.session_state[data_state_key] = df_dummy
-                    if filename_state_key and dummy_loaded_filename:
-                        st.session_state[filename_state_key] = dummy_loaded_filename
-
-                    if artifact is not None:
-                        artifact.add_df(artifact_df_name, df_dummy, f"{artifact_df_description} (dummy)")
-                        artifact.add_log(
-                            category=artifact_log_category,
-                            message="Dummy data loaded",
-                            details={
-                                "filename": dummy_loaded_filename or os.path.basename(dummy_file_path),
-                                "rows": len(df_dummy),
-                                "columns": len(df_dummy.columns),
-                                "column_names": list(df_dummy.columns),
-                            },
-                        )
-
-                    st.success(f"✅ Dummy data loaded! ({len(df_dummy)} rows, {len(df_dummy.columns)} columns)")
-                    st.rerun()
-                else:
-                    st.error(f"❌ Dummy data file not found: {dummy_file_path}")
-                    st.info("💡 Run 'python dummy_data_builders/generate_all_dummy_data.py' to generate the files")
+            if len(datasets) == 1 and not datasets[0].get("heading"):
+                st.markdown("Load pre-generated sample data for testing")
+                d = datasets[0]
+                if st.button(d.get("button_label", "🎲 Load Dummy"), key=d["button_key"], type="primary"):
+                    _load_dummy(d["file_path"], d.get("loaded_filename"))
+            else:
+                cols = st.columns(len(datasets))
+                for col, d in zip(cols, datasets):
+                    with col:
+                        if d.get("heading"):
+                            st.markdown(f"**{d['heading']}**")
+                        if d.get("caption"):
+                            st.caption(d["caption"])
+                        if st.button(
+                            d.get("button_label", "🎲 Load Dummy"),
+                            key=d["button_key"],
+                            type="primary",
+                            use_container_width=True,
+                        ):
+                            _load_dummy(d["file_path"], d.get("loaded_filename"))
 
     uploader_kwargs = {"type": ["csv"]}
     if uploader_key is not None:

@@ -8,3 +8,5 @@ seaborn
 openpyxl
 scipy
 python-dotenv
+scikit-learn
+econml
