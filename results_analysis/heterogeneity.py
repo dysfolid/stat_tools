@@ -13,6 +13,9 @@ import warnings
 import numpy as np
 import pandas as pd
 
+# np.trapezoid was added in numpy 2.0; older versions still have np.trapz.
+_trapezoid = getattr(np, "trapezoid", None) or getattr(np, "trapz")
+
 
 # Public constants exposed in the UI
 LEARNER_CHOICES = ("T-learner", "S-learner", "X-learner", "DR-learner", "CausalForest")
@@ -270,7 +273,7 @@ def qini_curve(cate: np.ndarray, Y: np.ndarray, T: np.ndarray) -> pd.DataFrame:
 def auuc_score(qini_df: pd.DataFrame) -> float:
     """Area under the Qini curve above the random baseline (positive = lift)."""
     diff = qini_df["qini"].to_numpy() - qini_df["random"].to_numpy()
-    return float(np.trapezoid(diff, qini_df["frac"].to_numpy()))
+    return float(_trapezoid(diff, qini_df["frac"].to_numpy()))
 
 
 def bootstrap_ate(
